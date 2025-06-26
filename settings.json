@@ -1,0 +1,27 @@
+{
+  "FARTCOIN5S": {
+    "levels": [
+      0.09922,
+      0.098,
+      0.097
+    ],
+    "amounts": [
+      1,
+      1,
+      2
+    ]
+  },
+  "FARTCOIN5L": {
+    "levels": [
+      0.009648,
+      0.00093,
+      0.009
+    ],
+    "amounts": [
+      1,
+      1,
+      2
+    ]
+  },
+  "take_profit_percent": 1
+}
