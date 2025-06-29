@@ -67,45 +67,59 @@ def place_take_profit_order(symbol, buy_price, amount, profit_percent):
         print("خطأ في أمر البيع:", e)
         return None
 
-# دالة رئيسية لتكرار المراقبة والتنفيذ
+# الدالة الرئيسية
+bought_levels = {"WIF5S": [], "WIF5L": []}
+last_sell_price = {"WIF5S": None, "WIF5L": None}
+
 def run_bot():
     while True:
         settings = load_settings()
+        profit = settings["take_profit_percent"]
 
-        for coin in ["FARTCOIN5S", "FARTCOIN5L"]:
-            opposite = "FARTCOIN5L" if coin == "FARTCOIN5S" else "FARTCOIN5S"
+        for coin in ["WIF5S", "WIF5L"]:
+            opposite = "WIF5L" if coin == "WIF5S" else "WIF5S"
             levels = settings[coin]["levels"]
             amounts = settings[coin]["amounts"]
-            profit = settings["take_profit_percent"]
 
-            # جلب سعر السوق الحالي
             try:
                 ticker = spot_api.list_tickers(currency_pair=coin + "_USDT")[0]
                 current_price = Decimal(ticker.last)
             except:
-                print(f"لم يتم جلب السعر الحالي لـ {coin}")
+                print(f"لم يتم جلب السعر لـ {coin}")
                 continue
 
             for i in range(3):
                 level_price = Decimal(str(levels[i]))
                 amount = Decimal(str(amounts[i]))
 
-                if current_price <= level_price:
-                    print(f"السعر الحالي لـ {coin} = {current_price}, أقل من أو يساوي {level_price}")
-
-                    # شراء العملة الحالية Limit
+                if current_price <= level_price and i not in bought_levels[coin]:
+                    print(f"وصل {coin} للسعر {level_price}")
                     limit_order = place_limit_order(coin + "_USDT", level_price, amount)
                     if not limit_order:
                         continue
 
-                    # شراء العملة المقابلة Market
+                    bought_levels[coin].append(i)
                     market_order = place_market_order(opposite + "_USDT", amount)
-                    if not market_order:
+                    if not market_order or not hasattr(market_order, "avg_deal_price"):
                         continue
 
-                    # بيع العملة الثانية عند ربح معين
-                    if hasattr(market_order, "avg_deal_price"):
-                        place_take_profit_order(opposite + "_USDT", Decimal(market_order.avg_deal_price), amount, profit)
+                    avg_price = Decimal(market_order.avg_deal_price)
+                    last_sell_price[opposite] = avg_price
+                    place_take_profit_order(opposite + "_USDT", avg_price, amount * Decimal("0.1"), profit)
+
+            # متابعة البيع المتكرر للربح عند 10%
+            if last_sell_price[coin]:
+                try:
+                    new_price = Decimal(ticker.last)
+                    target = last_sell_price[coin] * Decimal("1.1")
+                    if new_price >= target:
+                        print(f"{coin} صعد 10% من آخر بيع ربح. نبيع الربح مجددًا.")
+                        amount = Decimal("0.1")  # نبيع فقط الربح
+                        place_take_profit_order(coin + "_USDT", new_price, amount, profit)
+                        place_market_order(opposite + "_USDT", amount)
+                        last_sell_price[coin] = new_price
+                except:
+                    continue
 
         time.sleep(30)
 
